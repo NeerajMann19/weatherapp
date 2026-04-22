@@ -35,7 +35,7 @@ A full-stack weather web application built with **Spring Boot** and vanilla **HT
 
 ---
 
-## 📁 Project Structure
+```
 weatherapp/
 ├── src/main/
 │   ├── java/com/weatherapp/weatherapp/
@@ -54,6 +54,7 @@ weatherapp/
 │       └── static/
 │           └── style.css
 └── pom.xml
+```
 
 ---
 
