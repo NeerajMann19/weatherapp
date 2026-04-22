@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>WeatherApp</title>
+    <link rel="stylesheet" th:href="@{/style.css}">
+</head>
+<body th:attr="data-condition=${weather != null ? weather.condition : ''}">
+<div class="weather-bg"></div>
+<div class="container">
+    <h1>🌤 Weather App</h1>
+
+    <form action="/weather" method="get">
+        <input type="text" name="city" placeholder="Enter city name..." required
+               th:value="${city}"/>
+        <button type="submit">Search</button>
+    </form>
+    <button type="button" class="location-btn" onclick="detectLocation()">📍 Use My Location</button>
+
+    <!-- Favourites Row -->
+    <div th:if="${favourites != null and !favourites.isEmpty()}" class="favourites-row">
+        <span class="favourites-label">⭐ Saved:</span>
+        <div class="favourites-pills">
+            <span th:each="fav : ${favourites}" class="fav-pill">
+                <a th:href="@{/weather(city=${fav})}" th:text="${fav}"></a>
+                <a th:href="@{/favourite/remove(city=${fav}, redirect=${city})}" class="fav-remove">✕</a>
+            </span>
+        </div>
+    </div>
+
+    <div th:if="${error}" class="error">
+        <span class="error-icon">🌧️</span>
+        <div class="error-text">
+            <p class="error-title">Oops! City not found.</p>
+            <p class="error-sub">Check the spelling or try a nearby city.</p>
+        </div>
+    </div>
+
+    <!-- Weather Card — Asymmetric Layout -->
+    <div th:if="${weather}" class="weather-card">
+
+        <!-- Left: Icon + Temp + Condition -->
+        <div class="weather-left">
+            <div class="weather-icon" th:classappend="${weather.condition}">
+                <span th:if="${#strings.containsIgnoreCase(weather.condition, 'sun') or #strings.containsIgnoreCase(weather.condition, 'clear')}" class="icon sunny">☀️</span>
+                <span th:if="${#strings.containsIgnoreCase(weather.condition, 'cloud') or #strings.containsIgnoreCase(weather.condition, 'overcast')}" class="icon cloudy">☁️</span>
+                <span th:if="${#strings.containsIgnoreCase(weather.condition, 'rain') or #strings.containsIgnoreCase(weather.condition, 'drizzle')}" class="icon rainy">🌧️</span>
+                <span th:if="${#strings.containsIgnoreCase(weather.condition, 'snow')}" class="icon snowy">❄️</span>
+                <span th:if="${#strings.containsIgnoreCase(weather.condition, 'thunder') or #strings.containsIgnoreCase(weather.condition, 'storm')}" class="icon stormy">⛈️</span>
+                <span th:if="${#strings.containsIgnoreCase(weather.condition, 'fog') or #strings.containsIgnoreCase(weather.condition, 'mist')}" class="icon foggy">🌫️</span>
+            </div>
+            <h2 th:text="${weather.city + ', ' + weather.country}"></h2>
+            <p class="temp" th:text="${weather.tempC + '°C'}"></p>
+            <p th:text="'Feels like ' + ${weather.feelsLikeC} + '°C'"></p>
+            <p th:text="${weather.condition}"></p>
+        </div>
+
+        <!-- Right: Stats -->
+        <div class="weather-right">
+            <p th:text="'💧 Humidity: ' + ${weather.humidity} + '%'"></p>
+            <p th:text="'💨 Wind: ' + ${weather.windKph} + ' kph ' + ${weather.windDir}"></p>
+            <div class="uv-bar-wrap">
+                <span class="uv-bar-label">☀️ UV: <span th:text="${weather.uv + ' (' + weather.getUVLevel() + ')'}"></span></span>
+                <div class="uv-bar-track">
+                    <div class="uv-bar-thumb" th:style="'left: ' + ${weather.uv * 9} + '%'"></div>
+                </div>
+            </div>
+            <p>🌬️ AQI: <span th:text="${weather.aqi}"></span>
+                <span class="aqi-badge"
+                      th:classappend="'aqi-' + ${weather.aqi}"
+                      th:text="${weather.getAQILevel()}"></span>
+            </p>
+        </div>
+
+        <!-- Footer: Save Button -->
+        <div class="weather-card-footer">
+            <a th:href="@{/favourite/add(city=${weather.city})}" class="fav-btn">⭐ Save to Favourites</a>
+        </div>
+    </div>
+
+    <!-- Tip Card -->
+    <div th:if="${tip}" class="tip-card">
+        <span class="tip-icon">💡</span>
+        <p th:text="${tip}"></p>
+    </div>
+
+    <!-- Hourly Forecast -->
+    <div th:if="${hourly}" class="hourly-container">
+        <h3>Today's Hourly</h3>
+
+        <!-- Hidden temp + time data for trend graph -->
+        <div style="display:none">
+            <span th:each="hour : ${hourly}" th:text="${hour.tempC}" class="hourly-temp-data"></span>
+            <span th:each="hour : ${hourly}" th:text="${hour.getShortTime()}" class="hourly-time-data"></span>
+        </div>
+
+        <!-- Trend Graph -->
+        <div class="trend-wrap">
+            <canvas id="trendGraph" height="90"></canvas>
+        </div>
+
+        <div class="hourly-scroll">
+            <div th:each="hour : ${hourly}" class="hourly-card">
+                <p class="hourly-time" th:text="${hour.getShortTime()}"></p>
+                <span th:if="${#strings.containsIgnoreCase(hour.condition, 'sun') or #strings.containsIgnoreCase(hour.condition, 'clear')}" class="icon sunny">☀️</span>
+                <span th:if="${#strings.containsIgnoreCase(hour.condition, 'cloud') or #strings.containsIgnoreCase(hour.condition, 'overcast')}" class="icon cloudy">☁️</span>
+                <span th:if="${#strings.containsIgnoreCase(hour.condition, 'rain') or #strings.containsIgnoreCase(hour.condition, 'drizzle')}" class="icon rainy">🌧️</span>
+                <span th:if="${#strings.containsIgnoreCase(hour.condition, 'snow')}" class="icon snowy">❄️</span>
+                <span th:if="${#strings.containsIgnoreCase(hour.condition, 'thunder') or #strings.containsIgnoreCase(hour.condition, 'storm')}" class="icon stormy">⛈️</span>
+                <span th:if="${#strings.containsIgnoreCase(hour.condition, 'fog') or #strings.containsIgnoreCase(hour.condition, 'mist')}" class="icon foggy">🌫️</span>
+                <p class="hourly-temp" th:text="${hour.tempC + '°'}"></p>
+                <p class="hourly-rain" th:text="'🌧 ' + ${hour.chanceOfRain} + '%'"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3-Day Forecast -->
+    <div th:if="${forecast}" class="forecast-container">
+        <h3>3-Day Forecast</h3>
+        <div class="forecast-row">
+            <div th:each="day, iterStat : ${forecast}" class="forecast-card">
+                <p class="forecast-day" th:text="${day.getDayLabel(iterStat.index)}"></p>
+                <span th:if="${#strings.containsIgnoreCase(day.condition, 'sun') or #strings.containsIgnoreCase(day.condition, 'clear')}" class="icon sunny">☀️</span>
+                <span th:if="${#strings.containsIgnoreCase(day.condition, 'cloud') or #strings.containsIgnoreCase(day.condition, 'overcast')}" class="icon cloudy">☁️</span>
+                <span th:if="${#strings.containsIgnoreCase(day.condition, 'rain') or #strings.containsIgnoreCase(day.condition, 'drizzle')}" class="icon rainy">🌧️</span>
+                <span th:if="${#strings.containsIgnoreCase(day.condition, 'snow')}" class="icon snowy">❄️</span>
+                <span th:if="${#strings.containsIgnoreCase(day.condition, 'thunder') or #strings.containsIgnoreCase(day.condition, 'storm')}" class="icon stormy">⛈️</span>
+                <span th:if="${#strings.containsIgnoreCase(day.condition, 'fog') or #strings.containsIgnoreCase(day.condition, 'mist')}" class="icon foggy">🌫️</span>
+                <p class="forecast-condition" th:text="${day.condition}"></p>
+                <p class="forecast-temp" th:text="${day.maxTempC + '° / ' + day.minTempC + '°'}"></p>
+                <p class="forecast-rain" th:text="'🌧 ' + ${day.chanceOfRain} + '%'"></p>
+            </div>
+        </div>
+    </div>
+
+</div>
+<script>
+    function detectLocation() {
+        const btn = document.querySelector('.location-btn');
+        btn.textContent = '📍 Detecting...';
+        btn.disabled = true;
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const coords = pos.coords.latitude + ',' + pos.coords.longitude;
+                window.location.href = '/weather?city=' + coords;
+            },
+            (err) => {
+                btn.textContent = '📍 Use My Location';
+                btn.disabled = false;
+                alert('Could not get location. Please allow location access.');
+            }
+        );
+    }
+
+    // Count-up temperature
+    const tempEl = document.querySelector('.temp');
+    if (tempEl) {
+        const target = parseFloat(tempEl.textContent);
+        if (!isNaN(target)) {
+            let start = target - 8;
+            const step = (target - start) / (800 / 16);
+            tempEl.textContent = start.toFixed(1) + '°C';
+            const timer = setInterval(() => {
+                start += step;
+                if (start >= target) {
+                    clearInterval(timer);
+                    tempEl.textContent = target.toFixed(1) + '°C';
+                } else {
+                    tempEl.textContent = start.toFixed(1) + '°C';
+                }
+            }, 16);
+        }
+    }
+
+    // Temperature Trend Graph
+    function drawTrend() {
+        const canvas = document.getElementById('trendGraph');
+        if (!canvas) return;
+        const temps = Array.from(document.querySelectorAll('.hourly-temp-data')).map(el => parseFloat(el.textContent));
+        const times = Array.from(document.querySelectorAll('.hourly-time-data')).map(el => el.textContent);
+        if (temps.length === 0) return;
+
+        const W = canvas.parentElement.offsetWidth - 32;
+        const H = 90;
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext('2d');
+
+        const min = Math.min(...temps) - 2;
+        const max = Math.max(...temps) + 2;
+        const range = max - min || 1;
+        const pad = 24;
+
+        const pts = temps.map((t, i) => ({
+            x: pad + (i / (temps.length - 1)) * (W - pad * 2),
+            y: H - 24 - ((t - min) / range) * (H - 44)
+        }));
+
+        let accentColor = '#41AB5D';
+        const bc = document.body.classList;
+        if (bc.contains('bg-sunny'))  accentColor = '#FFD166';
+        else if (bc.contains('bg-rainy'))  accentColor = '#6EC6FF';
+        else if (bc.contains('bg-cloudy')) accentColor = '#9BA8EB';
+        else if (bc.contains('bg-stormy')) accentColor = '#CE93D8';
+        else if (bc.contains('bg-snowy'))  accentColor = '#90CAF9';
+        else if (bc.contains('bg-foggy'))  accentColor = '#B2BEC3';
+        if (bc.contains('night')) accentColor = '#90CAF9';
+
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, accentColor + '55');
+        grad.addColorStop(1, accentColor + '00');
+
+        // Filled area
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, H - 4);
+        ctx.lineTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+            const cpx = pts[i-1].x + (pts[i].x - pts[i-1].x) / 2;
+            ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+        }
+        ctx.lineTo(pts[pts.length-1].x, H - 4);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Line
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+            const cpx = pts[i-1].x + (pts[i].x - pts[i-1].x) / 2;
+            ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+        }
+        ctx.strokeStyle = accentColor;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        // Temp labels every 3 hours
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = '10px Poppins, sans-serif';
+        ctx.textAlign = 'center';
+        pts.forEach((p, i) => {
+            if (i % 3 === 0) ctx.fillText(Math.round(temps[i]) + '°', p.x, p.y - 7);
+        });
+    }
+
+    // Night mode
+    const cond = document.body.dataset.condition?.toLowerCase() || '';
+    const hr = new Date().getHours();
+    const isNight = hr >= 19 || hr < 6;
+    if (isNight) document.body.classList.add('night');
+    const body = document.body;
+    const bg = document.querySelector('.weather-bg');
+
+    if (cond.includes('sun') || cond.includes('clear')) {
+        body.classList.add('bg-sunny');
+        for (let i = 0; i < 8; i++) {
+            const ray = document.createElement('div');
+            ray.className = 'ray';
+            ray.style.transform = `rotate(${i * 45}deg)`;
+            ray.style.animationDelay = `${i * 0.2}s`;
+            bg.appendChild(ray);
+        }
+    } else if (cond.includes('rain') || cond.includes('drizzle')) {
+        body.classList.add('bg-rainy');
+        for (let i = 0; i < 60; i++) {
+            const drop = document.createElement('div');
+            drop.className = 'drop';
+            drop.style.left = Math.random() * 100 + 'vw';
+            drop.style.animationDuration = (0.6 + Math.random() * 0.8) + 's';
+            drop.style.animationDelay = (Math.random() * 2) + 's';
+            bg.appendChild(drop);
+        }
+    } else if (cond.includes('cloud') || cond.includes('overcast')) {
+        body.classList.add('bg-cloudy');
+        for (let i = 0; i < 5; i++) {
+            const cloud = document.createElement('div');
+            cloud.className = 'cloud';
+            cloud.style.top = (10 + Math.random() * 40) + 'vh';
+            cloud.style.animationDuration = (20 + Math.random() * 20) + 's';
+            cloud.style.animationDelay = (Math.random() * -20) + 's';
+            cloud.style.opacity = 0.3 + Math.random() * 0.3;
+            cloud.style.transform = `scale(${0.8 + Math.random()})`;
+            bg.appendChild(cloud);
+        }
+    } else if (cond.includes('thunder') || cond.includes('storm')) {
+        body.classList.add('bg-stormy');
+        for (let i = 0; i < 40; i++) {
+            const drop = document.createElement('div');
+            drop.className = 'drop heavy';
+            drop.style.left = Math.random() * 100 + 'vw';
+            drop.style.animationDuration = (0.3 + Math.random() * 0.4) + 's';
+            drop.style.animationDelay = (Math.random() * 2) + 's';
+            bg.appendChild(drop);
+        }
+    } else if (cond.includes('snow')) {
+        body.classList.add('bg-snowy');
+        for (let i = 0; i < 50; i++) {
+            const flake = document.createElement('div');
+            flake.className = 'flake';
+            flake.style.left = Math.random() * 100 + 'vw';
+            flake.style.animationDuration = (3 + Math.random() * 4) + 's';
+            flake.style.animationDelay = (Math.random() * 4) + 's';
+            flake.style.width = flake.style.height = (4 + Math.random() * 6) + 'px';
+            bg.appendChild(flake);
+        }
+    } else if (cond.includes('fog') || cond.includes('mist')) {
+        body.classList.add('bg-foggy');
+    }
+
+    // Draw trend after background classes are set
+    window.addEventListener('load', drawTrend);
+</script>
+</body>
+</html>
